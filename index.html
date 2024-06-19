@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <script src="https://launchar.app/sdk/v1?key=swi8DoK9lbhWJyiytqDCbBzurNvrPrEU&redirect=true"></script>
+
   <link rel="stylesheet" href="style.css" />
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/110/three.min.js"></script>
@@ -107,8 +107,9 @@
 </head>
 
 <body>
+  <!-- Button to trigger AR mode -->
   <a-scene device-orientation-permission-ui="enabled: false"
-    webxr="requiredFeatures:hit-test,local-floor;overlayElement: canvas;referenceSpaceType:local-floor"
+    webxr="requiredFeatures:hit-test,local-floor;referenceSpaceType:local-floor"
     cursor__mouse="rayOrigin: mouse" cursor__xrselect="rayOrigin: xrselect" raycaster="objects: [data-raycastable]">
     <a-assets>
       <img id="imageInfo" src="data/images/icon_info.png" />
@@ -163,7 +164,9 @@
     <a-plane height="15" width="15" position="0 0 0" rotation="-90 0 0" shadow="receive: true" ar-shadows="opacity: 0.3"
       visible="false"></a-plane>
   </a-scene>
+  
 
+  <button id="ar-button" style="width: 100px;height: 100px;top: 0;left: 0;position: fixed;">Start AR</button>
   <script>
 
     var isPlaced = false;
@@ -280,8 +283,6 @@
           if (video.paused) {
               video.play();
           }
-          captureScene();
-
         });
       }
     });
@@ -321,8 +322,41 @@
       link.click();
       document.body.removeChild(link);
     }
+
+    function checkWebXRSupport() {
+      
+      document.getElementById('ar-button').addEventListener('click', startAR);
+        if (navigator.xr) {
+          navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+            if (supported) {
+              //alert('AR is supported on this device.');
+            } else {
+              alert('AR is not supported on this device.');
+            }
+          });
+        } else {
+          alert('WebXR is not supported on this device.');
+        }
+      }
+
+      async function startAR() {
+      try {
+        //alert('start ar');
+        const session = await navigator.xr.requestSession('immersive-ar', {
+          requiredFeatures: ['local-floor', 'hit-test']
+        });
+        const scene = document.querySelector('a-scene');
+        scene.renderer.xr.setSession(session);
+        //alert('AR session started');
+      } catch (error) {
+        alert('Failed to start AR session:'+ error);
+      }
+    }
+
+    window.onload = checkWebXRSupport;
     
   </script>
+  
 </body>
 
 </html>
