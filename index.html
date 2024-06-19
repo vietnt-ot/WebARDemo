@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+
+  <link rel="stylesheet" href="style.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/110/three.min.js"></script>
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script src="https://unpkg.com/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
+  <script src="https://unpkg.com/aframe-environment-component@1.3.2/dist/aframe-environment-component.min.js"></script>
+  <script src="scripts/components/model-viewer.js"></script>
+  <script src="scripts/components/billboard.js"></script>
+
+  <script>
+    // Define a few custom components useful for AR mode. While these are somewhat reusable,
+    // I recommend checking if there are officially supported alternatives before copying
+    // these into new projects.
+
+    function setActiveCanvas(isActive) {
+
+      const canvas = document.querySelector('.a-canvas');
+
+      // Check if the canvas element is found
+      if (canvas) {
+        // Modify CSS properties
+        canvas.style.backgroundColor = '#f0f0f0';  // Change background color
+        if (isActive) {
+          canvas.style.padding = '0em';
+        }
+        else {
+          canvas.style.padding = '20em';
+        }
+        // Add more style modifications as needed
+      }
+    }
+
+
+    // See also https://github.com/aframevr/aframe/pull/4356
+    AFRAME.registerComponent("hide-in-ar-mode", {
+      // Set this object invisible while in AR mode.
+      init: function () {
+        this.el.sceneEl.addEventListener("enter-vr", (ev) => {
+          this.wasVisible = this.el.getAttribute("visible");
+          if (this.el.sceneEl.is("ar-mode")) {
+            this.el.setAttribute("visible", false);
+          }
+          setActiveCanvas(false);
+        });
+        this.el.sceneEl.addEventListener("exit-vr", (ev) => {
+          if (this.wasVisible) this.el.setAttribute("visible", true);
+
+          setActiveCanvas(true);
+        });
+      },
+    });
+
+    AFRAME.registerComponent("show-in-ar-mode", {
+      // Set this object invisible while in AR mode.
+      init: function () {
+        this.el.setAttribute("visible", false);
+        this.el.sceneEl.addEventListener("enter-vr", (ev) => {
+          if (this.el.sceneEl.is("ar-mode")) {
+            this.el.setAttribute("visible", true);
+          }
+          else {
+            this.el.setAttribute("visible", false);
+          }
+        });
+        this.el.sceneEl.addEventListener("exit-vr", (ev) => {
+          this.el.setAttribute("visible", false);
+        });
+      },
+    });
+
+    AFRAME.registerComponent("ar-shadows", {
+      // Swap an object's material to a transparent shadows-only material while
+      // in AR mode. Intended for use with a ground plane. The object is also
+      // set visible while in AR mode, this is useful if it's hidden in other
+      // modes due to them using a 3D environment.
+      schema: {
+        opacity: { default: 0.3 },
+      },
+      init: function () {
+        this.el.sceneEl.addEventListener("enter-vr", (ev) => {
+          this.wasVisible = this.el.getAttribute("visible");
+          if (this.el.sceneEl.is("ar-mode")) {
+            this.savedMaterial = this.el.object3D.children[0].material;
+            this.el.object3D.children[0].material =
+              new THREE.ShadowMaterial();
+            this.el.object3D.children[0].material.opacity = this.data.opacity;
+            this.el.setAttribute("visible", true);
+          }
+        });
+        this.el.sceneEl.addEventListener("exit-vr", (ev) => {
+          if (this.savedMaterial) {
+            this.el.object3D.children[0].material = this.savedMaterial;
+            this.savedMaterial = null;
+          }
+          if (!this.wasVisible) this.el.setAttribute("visible", false);
+        });
+      },
+    });
+  </script>
+</head>
+
+<body>
+  <a-scene device-orientation-permission-ui="enabled: false"
+    webxr="requiredFeatures:hit-test,local-floor;overlayElement: canvas;referenceSpaceType:local-floor"
+    cursor__mouse="rayOrigin: mouse" cursor__xrselect="rayOrigin: xrselect" raycaster="objects: [data-raycastable]">
+    <a-assets>
+      <img id="imageInfo" src="data/images/icon_info.png" />
+    </a-assets>
+    
+    <a-assets>
+      <video id="my-video" src="data/videos/house_japan.mp4" autoplay loop playsinline webkit-playsinline></video>
+  </a-assets>
+
+    <a-assets timeout="30000">
+      <!-- Model source: NASA -->
+      <a-asset-item id="rover" src="data/models/japan_house.glb" response-type="arraybuffer"></a-asset-item>
+    </a-assets>
+
+    <a-camera id ="maincamera" position="0 1.2 6"></a-camera>
+    <a-ring id="reticle" ar-hit-test-simple position="0 0 0" rotation="-90 0 0" radius-inner="0.02" radius-outer="0.03">
+      <a-ring material="color: red; opacity: 0.5" radius-inner="0.04" radius-outer="0.05"
+        animation="property: scale; from: 1 1 1; to: 2 2 2; loop: true; dir: alternate"></a-ring>
+      <a-ring material="color: red; opacity: 0.2" radius-inner="0.06" radius-outer="0.07"
+        animation="property: scale; from: 1 1 1; to: 3 3 3; loop: true; dir: alternate"></a-ring>
+    </a-ring>
+    <!-- Environment for 2D and VR viewing. It's auto-hidden in AR mode. -->
+    <a-entity environment="preset: japan; lighting: none; shadow: none; lightPosition: 0 2.15 0"
+      hide-in-ar-mode></a-entity>
+
+    <a-entity id="model" position="0 0 0" scale="0.02 0.02 0.02" rotation="0 0 0" show-in-ar-mode>
+      <a-entity position="0 0 0" rotation="0 0 0" gltf-model="#rover" animation-mixer
+        shadow="cast: true; receive: false" apply-transparent-material model-viewer>
+    
+        <!-- Video texture applied to a plane -->
+         
+      <a-entity id ="pivot info" position="0 12 0" billboard="target:maincamera" visible = "false">
+        <a-image data-raycastable id="spriteButton" src="#imageInfo" position="0 2.5 -0.1" rotation="0 0 0" scale="5 5 5" visible="true" button-info></a-image> 
+        <a-entity id ="groupMeta" position="0 0 0" scale = "0 0 0" rotation="0 0 0" visible = "false" animation__show="property: scale; startEvents: start-animation; from: 0 0 0; to: 1 1 1; dur: 1000; easing: easeOutBack; loop: false" animation__hide="property: scale; startEvents: end-animation; to: 0 0 0; dur: 1000; easing: easeOutBack; loop: false">
+          <a-image data-raycastable id ="video" position="0 7 0" scale = "24 14 8" rotation="0 0 0" material="src: #my-video; shader: flat" button-group-info></a-image>
+          <a-text value="Youtube Chanel - Ninja Walking" color="black" position="0 2 0"  scale="3 3 3" align="center"></a-text>
+        </a-entity>      
+      </a-entity>
+      </a-entity>
+    </a-entity>
+
+    <a-entity light="type: ambient; intensity: 0.5;"></a-entity>
+    <a-light type="directional" light="castShadow: true;
+                      shadowMapHeight: 1024;
+                      shadowMapWidth: 1024;
+                      shadowCameraLeft: -7;
+                      shadowCameraRight: 5;
+                      shadowCameraBottom: -5;
+                      shadowCameraTop: 5;" id="light" target="model" position="-5 3 1.5"></a-light>
+
+    <!-- This shadow-receiving plane is only visible in AR mode. -->
+    <a-plane height="15" width="15" position="0 0 0" rotation="-90 0 0" shadow="receive: true" ar-shadows="opacity: 0.3"
+      visible="false"></a-plane>
+  </a-scene>
+
+  <script>
+
+    var isPlaced = false;
+    var elModel;
+    var elRing;
+
+    AFRAME.registerComponent('apply-transparent-material', {
+      init: function () {
+        elModel = this.el;
+        var el = this.el;
+        el.addEventListener('model-loaded', function (e) {
+          var model = el.getObject3D('mesh');
+          if (!model) return;
+
+          model.traverse(function (node) {
+            if (node.isMesh) {
+              node.material.transparent = true;
+              node.material.opacity = 0.1; // Adjust opacity as needed
+              node.material.side = THREE.DoubleSide; // Ensure transparency is applied to both sides of the mesh
+            }
+          });
+        });
+      }
+    });
+
+    <!-- https://github.com/stspanho/aframe-hit-test/blob/master/index.html -->
+    AFRAME.registerComponent("ar-hit-test-simple", {
+      init: function () {
+        var elRing = this.el;
+        this.xrHitTestSource = null;
+        this.viewerSpace = null;
+        this.refSpace = null;
+        model = document.getElementById('model');
+
+        this.el.sceneEl.renderer.xr.addEventListener("sessionend", (ev) => {
+          this.viewerSpace = null;
+          this.refSpace = null;
+          this.xrHitTestSource = null;
+        });
+        this.el.sceneEl.renderer.xr.addEventListener("sessionstart", (ev) => {
+          let session = this.el.sceneEl.renderer.xr.getSession();
+
+          let element = this.el;
+          session.addEventListener('select', function () {
+            if (isPlaced)
+              return;
+            let position = element.getAttribute('position');
+            document.getElementById('model').setAttribute('position', position);
+            isPlaced = true;
+            var mesh = elModel.getObject3D('mesh');
+            if (!mesh) return;
+
+            mesh.traverse(function (node) {
+              if (node.isMesh) {
+                node.material.transparent = true;
+                node.material.opacity = 1.0; // Adjust opacity as needed
+                node.material.side = THREE.DoubleSide; // Ensure transparency is applied to both sides of the mesh
+              }
+            });
+            elRing.setAttribute('visible', false);
+            document.getElementById('pivot info').setAttribute('visible',true);
+          });
+
+          session.requestReferenceSpace("viewer").then((space) => {
+            this.viewerSpace = space;
+            session
+              .requestHitTestSource({ space: this.viewerSpace })
+              .then((hitTestSource) => {
+                this.xrHitTestSource = hitTestSource;
+              });
+          });
+
+          session.requestReferenceSpace("local-floor").then((space) => {
+            this.refSpace = space;
+          });
+        });
+      },
+      tick: function () {
+        if (!this.viewerSpace) return;
+
+        let frame = this.el.sceneEl.frame;
+        let xrViewerPose = frame.getViewerPose(this.refSpace);
+
+        if (this.xrHitTestSource && xrViewerPose) {
+          let hitTestResults = frame.getHitTestResults(this.xrHitTestSource);
+          if (hitTestResults.length > 0) {
+            let pose = hitTestResults[0].getPose(this.refSpace);
+
+            let inputMat = new THREE.Matrix4();
+            inputMat.fromArray(pose.transform.matrix);
+
+            let position = new THREE.Vector3();
+            position.setFromMatrixPosition(inputMat);
+            this.el.setAttribute("position", position);
+            if (!isPlaced) {
+              model.setAttribute('position', position);
+              document.getElementById('pivot info').setAttribute('visible',false);
+            }
+          }
+        }
+      },
+    });
+
+    AFRAME.registerComponent('button-info', {
+      init: function () {
+        var button = this.el;
+        button.addEventListener('click', function () {
+          console.log("Click Button Info");
+          var groupMeta= document.getElementById('groupMeta');
+          groupMeta.setAttribute('visible',true);
+          groupMeta.emit('start-animation');
+          
+          var video = document.getElementById('my-video');
+          if (video.paused) {
+              video.play();
+          }
+          captureScene();
+
+        });
+      }
+    });
+
+    
+    AFRAME.registerComponent('button-group-info', {
+      init: function () {
+        var button = this.el;
+        button.addEventListener('click', function () {
+          console.log("Click groupInfo");
+          var groupMeta= document.getElementById('groupMeta');
+          groupMeta.emit('end-animation');
+          var video = document.getElementById('my-video');
+          if (video.playing) {
+              video.pause();
+          }
+        });
+      }
+    });
+
+    
+    function captureScene() {
+      var sceneEl = document.querySelector('a-scene');
+      var canvas = sceneEl.components.screenshot.getCanvas('perspective');
+      var outputCanvas = document.createElement('canvas');
+      var context = outputCanvas.getContext('2d');
+      outputCanvas.width = sceneEl.canvas.width;
+      outputCanvas.height = sceneEl.canvas.height;
+      context.drawImage(canvas, 0, 0, outputCanvas.width, outputCanvas.height);
+
+      var dataURL = outputCanvas.toDataURL('image/png');
+
+      var link = document.createElement('a');
+      link.href = dataURL;
+      link.download = 'scene.png';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    
+  </script>
+</body>
+
+</html>
